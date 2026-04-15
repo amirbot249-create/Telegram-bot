@@ -1,0 +1,9 @@
+python-telegram-bot==20.7
+google-generativeai
+duckduckgo-search
+gtts
+pdfplumber
+python-docx
+beautifulsoup4
+requests
+SpeechRecognition
