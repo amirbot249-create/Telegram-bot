@@ -1,5 +1,5 @@
 python-telegram-bot==20.7
-google-generativeai
+openai
 duckduckgo-search
 gtts
 pdfplumber
