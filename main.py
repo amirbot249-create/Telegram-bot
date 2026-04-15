@@ -4,12 +4,11 @@ import sqlite3
 import requests
 import tempfile
 import subprocess
-from io import BytesIO
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from gtts import gTTS
 from duckduckgo_search import DDGS
-import google.generativeai as genai
+from openai import OpenAI
 import pdfplumber
 from docx import Document as DocxDocument
 from bs4 import BeautifulSoup
@@ -22,10 +21,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 DB_PATH = "memory.db"
 
@@ -77,7 +75,7 @@ def search_web(query):
 
 def read_url(url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (compatible; TelegramBot/1.0)'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -93,30 +91,32 @@ def read_url(url):
 def get_ai_response(user_id, user_message, context_info=None):
     history = get_history(user_id)
 
-    history_text = ""
-    for role, content in history[:-1]:
-        history_text += f"{role}: {content}\n"
-
     system_prompt = (
         "Ты умный AI ассистент по имени Beka&_money бот. "
         "Отвечай всегда на русском языке. "
         "Ты помнишь историю разговора. "
-        "Ты умеешь искать в интернете, читать файлы и ссылки. "
         "Давай подробные и полезные ответы."
     )
 
     if context_info:
         system_prompt += f"\n\nДополнительная информация:\n{context_info}"
 
-    full_prompt = (
-        f"{system_prompt}\n\n"
-        f"История:\n{history_text}\n"
-        f"Пользователь: {user_message}\n"
-        f"Ассистент:"
-    )
+    messages = [{"role": "system", "content": system_prompt}]
 
-    response = model.generate_content(full_prompt)
-    return response.text
+    for role, content in history:
+        if role == "Пользователь":
+            messages.append({"role": "user", "content": content})
+        else:
+            messages.append({"role": "assistant", "content": content})
+
+    messages.append({"role": "user", "content": user_message})
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        max_tokens=1000
+    )
+    return response.choices[0].message.content
 
 async def send_voice(update, text):
     try:
